@@ -1,0 +1,24 @@
+{
+    "about": "$V2EX历史价格操作工具",
+    "articles": [
+    ],
+    "created": 784624956.137329,
+    "discordLink": "",
+    "farcasterEnabled": false,
+    "githubUsername": "",
+    "id": "E3B4BB82-6B3C-4A53-BA20-35F51B187AF0",
+    "ipns": "k51qzi5uqu5dhxn07dibof450yjzc5c1kw7hzxil98vkv6fxwbfvj6ggwuw6ke",
+    "juiceboxEnabled": false,
+    "mastodonUsername": "",
+    "name": "$V2EX History",
+    "plausibleAPIServer": "plausible.io",
+    "plausibleDomain": "",
+    "plausibleEnabled": false,
+    "podcastCategories": {
+    },
+    "podcastExplicit": false,
+    "podcastLanguage": "en",
+    "telegramUsername": "",
+    "twitterUsername": "",
+    "updated": 784624956.137329
+}
