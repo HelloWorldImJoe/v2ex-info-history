@@ -1,13 +1,13 @@
 {
-    "about": "$V2EX历史价格操作工具",
+    "about": "$V2EX历史数据查看工具",
     "articles": [
     ],
     "created": 784624956.137329,
     "discordLink": "",
     "farcasterEnabled": false,
     "githubUsername": "",
-    "id": "E3B4BB82-6B3C-4A53-BA20-35F51B187AF0",
-    "ipns": "k51qzi5uqu5dhxn07dibof450yjzc5c1kw7hzxil98vkv6fxwbfvj6ggwuw6ke",
+    "id": "4DB4A1EC-8C8E-4342-98C8-3534CF8CAB5D",
+    "ipns": "k51qzi5uqu5dg7ipe1oa6pxyektpu79lenrt0n022pyfrgp8p062v92xrtr173",
     "juiceboxEnabled": false,
     "mastodonUsername": "",
     "name": "$V2EX History",

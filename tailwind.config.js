@@ -18,11 +18,8 @@ export default {
         },
         extend: {
             screens: {
-                'sm': '640px',
-                'md': '768px',
-                'lg': '1024px',
-                'xl': '1280px',
-                '2xl': '1440px',
+                'mobile': {'max': '639px'},
+                "2xl": "1440px",
             },
             colors: {
                 border: "hsl(var(--border))",
@@ -58,19 +55,43 @@ export default {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
                 },
-            },
-            fontFamily: {
-                sans: [
-                    "PingFang SC",
-                    "Microsoft YaHei",
-                    "HarmonyOS Sans SC",
-                    "sans-serif",
-                ],
+                chart: {
+                    1: "hsl(var(--chart-1))",
+                    2: "hsl(var(--chart-2))",
+                    3: "hsl(var(--chart-3))",
+                    4: "hsl(var(--chart-4))",
+                    5: "hsl(var(--chart-5))",
+                },
+                sidebar: {
+                    DEFAULT: "hsl(var(--sidebar))",
+                    foreground: "hsl(var(--sidebar-foreground))",
+                    primary: "hsl(var(--sidebar-primary))",
+                    "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
+                    accent: "hsl(var(--sidebar-accent))",
+                    "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
+                    border: "hsl(var(--sidebar-border))",
+                    ring: "hsl(var(--sidebar-ring))",
+                },
             },
             borderRadius: {
                 lg: "var(--radius)",
                 md: "calc(var(--radius) - 2px)",
                 sm: "calc(var(--radius) - 4px)",
+                xl: "calc(var(--radius) + 4px)",
+            },
+            boxShadow: {
+                '2xs': 'var(--shadow-2xs)',
+                xs: 'var(--shadow-xs)',
+                sm: 'var(--shadow-sm)',
+                DEFAULT: 'var(--shadow)',
+                md: 'var(--shadow-md)',
+                lg: 'var(--shadow-lg)',
+                xl: 'var(--shadow-xl)',
+                '2xl': 'var(--shadow-2xl)',
+            },
+            fontFamily: {
+                sans: ['Inter', 'var(--font-sans)', 'system-ui', 'sans-serif'],
+                mono: ['JetBrains Mono', 'var(--font-mono)', 'Menlo', 'monospace'],
             },
             keyframes: {
                 "accordion-down": {
@@ -81,10 +102,15 @@ export default {
                     from: { height: "var(--radix-accordion-content-height)" },
                     to: { height: "0" },
                 },
+                "caret-blink": {
+                    "0%,70%,100%": { opacity: "1" },
+                    "20%,50%": { opacity: "0" },
+                },
             },
             animation: {
                 "accordion-down": "accordion-down 0.2s ease-out",
                 "accordion-up": "accordion-up 0.2s ease-out",
+                "caret-blink": "caret-blink 1.25s ease-out infinite",
             },
         },
     },
