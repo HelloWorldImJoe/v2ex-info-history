@@ -19,6 +19,7 @@ import type { HodlSnapshot } from '@/hooks/useV2exData';
 
 interface PriceChartProps {
   snapshots: HodlSnapshot[];
+  rangeDays: number;
   className?: string;
 }
 
@@ -34,23 +35,52 @@ const sanitizePriceValue = (value?: number | null) => {
   return value > 0 ? value : undefined;
 };
 
-export default function PriceChart({ snapshots, className }: PriceChartProps) {
+const getAxisId = (key: string) => (key === 'sol_price' || key === 'btc_price' ? 'right' : 'left');
+
+const INDICATOR_COLORS = {
+  ma: '#8B5CF6',
+  ema: '#F472B6',
+  boll: '#9CA3AF',
+};
+
+const getIndicatorColor = (type: 'ma' | 'ema' | 'boll', fallback: string) => {
+  return INDICATOR_COLORS[type] || fallback;
+};
+
+const getMaPeriod = (rangeDays: number) => {
+  if (rangeDays <= 3) return 3;
+  if (rangeDays <= 7) return 7;
+  return 30;
+};
+
+const getEmaPeriod = (rangeDays: number) => getMaPeriod(rangeDays);
+
+const getBollPeriod = (rangeDays: number) => {
+  if (rangeDays >= 20) return 20;
+  if (rangeDays >= 10) return 10;
+  return Math.max(5, rangeDays);
+};
+
+export default function PriceChart({ snapshots, rangeDays, className }: PriceChartProps) {
   const [visibleCoins, setVisibleCoins] = useState<Record<string, boolean>>({
     price: true,
     pump_price: true,
     sol_price: true,
     btc_price: true,
   });
-  const [showMA, setShowMA] = useState<Record<string, boolean>>({
-    ma7: false,
-    ma30: false,
-  });
   const [isRelative, setIsRelative] = useState(false);
+  const [showMA, setShowMA] = useState(false);
+  const [showEMA, setShowEMA] = useState(false);
+  const [showBoll, setShowBoll] = useState(false);
   
   // Zoom state
   const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
   const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
   const [zoomDomain, setZoomDomain] = useState<{ left: number; right: number } | null>(null);
+
+  const maPeriod = useMemo(() => getMaPeriod(rangeDays), [rangeDays]);
+  const emaPeriod = useMemo(() => getEmaPeriod(rangeDays), [rangeDays]);
+  const bollPeriod = useMemo(() => getBollPeriod(rangeDays), [rangeDays]);
 
   // Calculate moving average
   const calculateMA = (data: any[], period: number, key: string) => {
@@ -63,6 +93,33 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
       if (values.length < period) return null;
       const sum = values.reduce((acc, curr) => acc + (curr as number), 0);
       return sum / values.length;
+    });
+  };
+
+  const calculateEMA = (data: any[], period: number, key: string) => {
+    const k = 2 / (period + 1);
+    return data.map((_, index) => {
+      const value = data[index][key];
+      if (typeof value !== 'number') return null;
+      if (index === 0) return value;
+      const prev = data[index - 1][`ema_${key}`];
+      if (typeof prev !== 'number') return value;
+      return value * k + prev * (1 - k);
+    });
+  };
+
+  const calculateBoll = (data: any[], period: number, key: string) => {
+    return data.map((_, index) => {
+      if (index < period - 1) return { upper: null, lower: null };
+      const window = data.slice(index - period + 1, index + 1);
+      const values = window
+        .map((entry) => entry[key])
+        .filter((val: number | undefined) => typeof val === 'number') as number[];
+      if (values.length < period) return { upper: null, lower: null };
+      const mean = values.reduce((acc, v) => acc + v, 0) / values.length;
+      const variance = values.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / values.length;
+      const std = Math.sqrt(variance);
+      return { upper: mean + 2 * std, lower: mean - 2 * std };
     });
   };
 
@@ -112,15 +169,38 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
       };
     });
 
-    // Absolute moving averages
-    const ma7Abs = calculateMA(baseData, 7, 'price');
-    const ma30Abs = calculateMA(baseData, 30, 'price');
+    const coinKeys = COINS.map((c) => c.key);
 
-    const absolute = baseData.map((item, index) => ({
-      ...item,
-      ma7_price: ma7Abs[index],
-      ma30_price: ma30Abs[index],
-    }));
+    // Absolute indicators per coin
+    const maAbs: Record<string, Array<number | null>> = {};
+    const emaAbs: Record<string, Array<number | null>> = {};
+    const bollAbsUpper: Record<string, Array<number | null>> = {};
+    const bollAbsLower: Record<string, Array<number | null>> = {};
+
+    coinKeys.forEach((key) => {
+      maAbs[key] = calculateMA(baseData, maPeriod, key);
+      // seed EMA with SMA values for smoother start
+      const emaSeeded = baseData.map((entry, idx) => ({ ...entry, [`ema_${key}`]: maAbs[key][idx] }));
+      emaAbs[key] = calculateEMA(emaSeeded, emaPeriod, key);
+      const boll = calculateBoll(baseData, bollPeriod, key);
+      bollAbsUpper[key] = boll.map((b) => b.upper);
+      bollAbsLower[key] = boll.map((b) => b.lower);
+    });
+
+    const absolute = baseData.map((item, index) => {
+      const indicatorFields = coinKeys.reduce((acc, key) => {
+        acc[`ma_${key}`] = maAbs[key][index];
+        acc[`ema_${key}`] = emaAbs[key][index];
+        acc[`boll_upper_${key}`] = bollAbsUpper[key][index];
+        acc[`boll_lower_${key}`] = bollAbsLower[key][index];
+        return acc;
+      }, {} as Record<string, number | null>);
+
+      return {
+        ...item,
+        ...indicatorFields,
+      };
+    });
 
     // Relative (% change from first valid point per coin)
     const toRelative = (value?: number, base?: number) => {
@@ -136,24 +216,77 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
       btc_price: toRelative(item.btc_price, basePrices.btc_price),
     }));
 
-    const ma7Rel = calculateMA(relativeBase, 7, 'price');
-    const ma30Rel = calculateMA(relativeBase, 30, 'price');
+    const maRel: Record<string, Array<number | null>> = {};
+    const emaRel: Record<string, Array<number | null>> = {};
+    const bollRelUpper: Record<string, Array<number | null>> = {};
+    const bollRelLower: Record<string, Array<number | null>> = {};
 
-    const relative = relativeBase.map((item, index) => ({
-      ...item,
-      ma7_price: ma7Rel[index],
-      ma30_price: ma30Rel[index],
-    }));
+    coinKeys.forEach((key) => {
+      maRel[key] = calculateMA(relativeBase, maPeriod, key);
+      const emaSeeded = relativeBase.map((entry, idx) => ({ ...entry, [`ema_${key}`]: maRel[key][idx] }));
+      emaRel[key] = calculateEMA(emaSeeded, emaPeriod, key);
+      const boll = calculateBoll(relativeBase, bollPeriod, key);
+      bollRelUpper[key] = boll.map((b) => b.upper);
+      bollRelLower[key] = boll.map((b) => b.lower);
+    });
+
+    const relative = relativeBase.map((item, index) => {
+      const indicatorFields = coinKeys.reduce((acc, key) => {
+        acc[`ma_${key}`] = maRel[key][index];
+        acc[`ema_${key}`] = emaRel[key][index];
+        acc[`boll_upper_${key}`] = bollRelUpper[key][index];
+        acc[`boll_lower_${key}`] = bollRelLower[key][index];
+        return acc;
+      }, {} as Record<string, number | null>);
+
+      return {
+        ...item,
+        ...indicatorFields,
+      };
+    });
 
     return { absolute, relative };
-  }, [snapshots]);
+  }, [snapshots, maPeriod]);
 
-  const toggleMA = (key: string) => {
-    setShowMA((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
+  const comparison = useMemo(() => {
+    if (!snapshots.length) return null;
+
+    // Reuse normalized, oldest→newest ordering without sampling for accuracy
+    const normalized = snapshots
+      .map((snap) => ({
+        ...snap,
+        price: sanitizePriceValue(snap.price),
+        pump_price: sanitizePriceValue(snap.pump_price),
+        sol_price: sanitizePriceValue(snap.sol_price),
+        btc_price: sanitizePriceValue(snap.btc_price),
+      }))
+      .filter((s) => [s.price, s.pump_price, s.sol_price, s.btc_price].some((v) => typeof v === 'number'))
+      .reverse();
+
+    if (normalized.length < 2) return null;
+
+    const mid = Math.floor(normalized.length / 2);
+    const firstHalf = normalized.slice(0, mid);
+    const secondHalf = normalized.slice(mid);
+
+    const avg = (arr: typeof normalized, key: string) => {
+      const vals = arr.map((item) => (item as any)[key]).filter((v) => typeof v === 'number') as number[];
+      if (!vals.length) return null;
+      const sum = vals.reduce((a, b) => a + b, 0);
+      return sum / vals.length;
+    };
+
+    const coins = COINS.map((c) => c.key);
+    const result: Record<string, { prev: number | null; next: number | null }> = {};
+    coins.forEach((key) => {
+      result[key] = {
+        prev: avg(firstHalf, key),
+        next: avg(secondHalf, key),
+      };
+    });
+
+    return result;
+  }, [snapshots]);
 
   const toggleCoin = (key: string) => {
     setVisibleCoins((prev) => ({
@@ -227,6 +360,13 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
     return `$${value.toFixed(2)}`;
   };
 
+  const formatAvgPrice = (key: string, value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return '-';
+    if (key === 'btc_price') return `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+    if (value < 1) return `$${value.toFixed(6)}`;
+    return `$${value.toFixed(4)}`;
+  };
+
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -234,16 +374,43 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
         <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
           <p className="text-xs text-muted-foreground mb-2">{payload[0]?.payload?.fullDate}</p>
           {payload.map((entry: any) => {
+            const isMA = entry.dataKey?.startsWith('ma_');
+            const isEMA = entry.dataKey?.startsWith('ema_');
+            const isBollUpper = entry.dataKey?.startsWith('boll_upper_');
+            const isBollLower = entry.dataKey?.startsWith('boll_lower_');
+            const baseKey = entry.dataKey
+              ?.replace('ma_', '')
+              ?.replace('ema_', '')
+              ?.replace('boll_upper_', '')
+              ?.replace('boll_lower_', '');
+
             const coin = COINS.find((c) => c.key === entry.dataKey);
-            if (!coin) return null;
+            const baseCoin = COINS.find((c) => c.key === baseKey);
+
+            if (!coin && !baseCoin) return null;
+            if (isMA && !showMA) return null;
+            if (isEMA && !showEMA) return null;
+            if ((isBollUpper || isBollLower) && !showBoll) return null;
+
+            let color: string | undefined = (coin || baseCoin)?.color;
+            if (isMA) color = getIndicatorColor('ma', color || '#888');
+            if (isEMA) color = getIndicatorColor('ema', color || '#888');
+            if (isBollUpper || isBollLower) color = getIndicatorColor('boll', color || '#888');
+            let labelText = baseCoin?.name ?? '';
+            if (isMA) labelText += ` MA(${maPeriod})`;
+            if (isEMA) labelText += ` EMA(${emaPeriod})`;
+            if (isBollUpper) labelText += ' Bollinger Upper';
+            if (isBollLower) labelText += ' Bollinger Lower';
+            if (!isMA && !isEMA && !isBollUpper && !isBollLower) labelText = coin?.name ?? '';
+
             return (
               <div key={entry.dataKey} className="flex items-center gap-2 text-sm">
                 <span
                   className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: coin.color }}
+                  style={{ backgroundColor: color, opacity: isBollUpper || isBollLower ? 0.5 : 1 }}
                 />
-                <span className="text-muted-foreground">{coin.name}:</span>
-                <span className="font-mono font-medium">{formatTooltipValue(entry.dataKey, entry.value)}</span>
+                <span className="text-muted-foreground">{labelText}:</span>
+                <span className="font-mono font-medium">{formatTooltipValue(baseKey, entry.value)}</span>
               </div>
             );
           })}
@@ -283,24 +450,44 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
               ))}
             </div>
 
-            {/* MA toggles */}
+            {/* Indicator toggles (auto periods) */}
             <div className="flex items-center gap-3 flex-nowrap whitespace-nowrap">
               <span className="text-muted-foreground">技术指标:</span>
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <Checkbox
-                  checked={showMA.ma7}
-                  onCheckedChange={() => toggleMA('ma7')}
+                  checked={showMA}
+                  onCheckedChange={(v) => setShowMA(!!v)}
                   className="h-4 w-4"
                 />
-                <span>MA7</span>
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: getIndicatorColor('ma', '#8B5CF6') }}
+                />
+                <span className="text-xs font-medium text-muted-foreground">MA({maPeriod})</span>
               </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <Checkbox
-                  checked={showMA.ma30}
-                  onCheckedChange={() => toggleMA('ma30')}
+                  checked={showEMA}
+                  onCheckedChange={(v) => setShowEMA(!!v)}
                   className="h-4 w-4"
                 />
-                <span>MA30</span>
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: getIndicatorColor('ema', '#F472B6') }}
+                />
+                <span className="text-xs font-medium text-muted-foreground">EMA({emaPeriod})</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <Checkbox
+                  checked={showBoll}
+                  onCheckedChange={(v) => setShowBoll(!!v)}
+                  className="h-4 w-4"
+                />
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: getIndicatorColor('boll', '#9CA3AF') }}
+                />
+                <span className="text-xs font-medium text-muted-foreground">BOLL({bollPeriod})</span>
               </label>
             </div>
 
@@ -407,78 +594,82 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
                 />
               )}
               
-              {visibleCoins.price && (
+              {COINS.filter((coin) => visibleCoins[coin.key]).map((coin) => (
                 <Line
-                  yAxisId="left"
+                  key={coin.key}
+                  yAxisId={getAxisId(coin.key)}
                   type="monotone"
-                  dataKey="price"
-                  stroke="#3B82F6"
+                  dataKey={coin.key}
+                  stroke={coin.color}
                   strokeWidth={2}
                   dot={false}
-                  name="$V2EX"
+                  name={coin.name}
                 />
-              )}
-              {visibleCoins.pump_price && (
+              ))}
+
+              {/* Moving Averages per coin (auto period, toggle) */}
+              {showMA && COINS.filter((coin) => visibleCoins[coin.key]).map((coin) => (
                 <Line
-                  yAxisId="left"
+                  key={`ma-${coin.key}`}
+                  yAxisId={getAxisId(coin.key)}
                   type="monotone"
-                  dataKey="pump_price"
-                  stroke="#F97316"
-                  strokeWidth={2}
+                  dataKey={`ma_${coin.key}`}
+                  stroke={getIndicatorColor('ma', coin.color)}
+                  strokeWidth={1.25}
+                  strokeDasharray="6 6"
                   dot={false}
-                  name="PUMP"
-                />
-              )}
-              {visibleCoins.sol_price && (
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="sol_price"
-                  stroke="#14B8A6"
-                  strokeWidth={2}
-                  dot={false}
-                  name="SOL"
-                />
-              )}
-              {visibleCoins.btc_price && (
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="btc_price"
-                  stroke="#EAB308"
-                  strokeWidth={2}
-                  dot={false}
-                  name="BTC"
-                />
-              )}
-              
-              {/* Moving Averages */}
-              {showMA.ma7 && (
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="ma7_price"
-                  stroke="#A855F7"
-                  strokeWidth={1.5}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  name="MA7"
+                  name={`${coin.name} MA(${maPeriod})`}
                   connectNulls
+                  opacity={0.9}
                 />
-              )}
-              {showMA.ma30 && (
+              ))}
+
+              {/* EMA per coin */}
+              {showEMA && COINS.filter((coin) => visibleCoins[coin.key]).map((coin) => (
                 <Line
-                  yAxisId="left"
+                  key={`ema-${coin.key}`}
+                  yAxisId={getAxisId(coin.key)}
                   type="monotone"
-                  dataKey="ma30_price"
-                  stroke="#EC4899"
-                  strokeWidth={1.5}
-                  strokeDasharray="5 5"
+                  dataKey={`ema_${coin.key}`}
+                  stroke={getIndicatorColor('ema', coin.color)}
+                  strokeWidth={1.25}
+                  strokeDasharray="3 3"
                   dot={false}
-                  name="MA30"
+                  name={`${coin.name} EMA(${emaPeriod})`}
                   connectNulls
+                  opacity={0.9}
                 />
-              )}
+              ))}
+
+              {/* Bollinger Bands per coin */}
+              {showBoll && COINS.filter((coin) => visibleCoins[coin.key]).flatMap((coin) => ([
+                <Line
+                  key={`boll-upper-${coin.key}`}
+                  yAxisId={getAxisId(coin.key)}
+                  type="monotone"
+                  dataKey={`boll_upper_${coin.key}`}
+                  stroke={getIndicatorColor('boll', coin.color)}
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  name={`${coin.name} Boll Upper`}
+                  connectNulls
+                  opacity={0.4}
+                />,
+                <Line
+                  key={`boll-lower-${coin.key}`}
+                  yAxisId={getAxisId(coin.key)}
+                  type="monotone"
+                  dataKey={`boll_lower_${coin.key}`}
+                  stroke={getIndicatorColor('boll', coin.color)}
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  name={`${coin.name} Boll Lower`}
+                  connectNulls
+                  opacity={0.4}
+                />,
+              ]))}
             </LineChart>
           </ResponsiveContainer>
         ) : (
@@ -487,6 +678,35 @@ export default function PriceChart({ snapshots, className }: PriceChartProps) {
           </div>
         )}
       </div>
+
+      {/* Period Comparison */}
+      {comparison && (
+        <div className="mt-6">
+          <div className="mb-3 text-sm text-muted-foreground">环比分析（前半段 vs 后半段）</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {COINS.map((coin) => {
+              const data = comparison[coin.key];
+              if (!data) return null;
+              return (
+                <div key={coin.key} className="rounded-lg border border-border bg-muted/40 p-4 flex flex-col gap-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: coin.color }} />
+                    <span>{coin.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>前期均价:</span>
+                    <span className="font-mono text-foreground">{formatAvgPrice(coin.key, data.prev)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>后期均价:</span>
+                    <span className="font-mono text-foreground">{formatAvgPrice(coin.key, data.next)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="mt-4 flex items-center justify-center gap-6">

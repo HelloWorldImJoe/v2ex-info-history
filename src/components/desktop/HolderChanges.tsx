@@ -153,7 +153,7 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 			{hasRemovedChanges && (
 				<div className="bg-card border border-border rounded-lg">
 					<div className="p-5 border-b border-border">
-						<h3 className="text-lg font-semibold">移出前120名</h3>
+						<h3 className="text-lg font-semibold">大额减持(Top120)</h3>
 						<p className="text-sm text-muted-foreground mt-1">最近移出前120名的地址</p>
 					</div>
 					<div className="max-h-[840px] overflow-y-auto scrollbar-thin">

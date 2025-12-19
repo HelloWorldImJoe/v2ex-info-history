@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useV2exData, formatAmount, DataRange } from '@/hooks/useV2exData';
+import { useV2exData, DataRange } from '@/hooks/useV2exData';
 import Header from '@/components/desktop/Header';
 import PriceChart from '@/components/desktop/PriceChart';
 import CommunityMetricsChart from '@/components/desktop/CommunityMetricsChart';
@@ -9,6 +9,29 @@ import HolderChanges from '@/components/desktop/HolderChanges';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type RangeOption = '3d' | '7d' | '30d';
+const COMMUNITY_METRIC_KEYS = [
+  'holders',
+  'hodl_10k_addresses_count',
+  'new_accounts_via_solana',
+  'total_solana_addresses_linked',
+  'main_amm_v2ex_amount',
+  'main_amm_sol_amount',
+] as const;
+type CommunityMetricKey = (typeof COMMUNITY_METRIC_KEYS)[number];
+
+const formatCompactAmount = (value: number | undefined | null) => {
+  if (value === undefined || value === null) return '-';
+
+  const abs = Math.abs(value);
+  if (abs >= 100000) {
+    return `${(value / 1_000_000).toFixed(2)}M`;
+  }
+  if (abs >= 10000) {
+    return `${(value / 1_000).toFixed(2)}k`;
+  }
+
+  return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+};
 
 export default function Dashboard() {
   const [rangeOption, setRangeOption] = useState<RangeOption>('3d');
@@ -62,6 +85,81 @@ export default function Dashboard() {
 
     return data.addressesRemoved.filter((c) => new Date(c.removed_at).getTime() >= cutoffDate.getTime());
   }, [data.addressesRemoved, rangeOption]);
+
+  const metricChanges = useMemo(() => {
+    if (!displaySnapshots.length) return {} as Record<CommunityMetricKey, { delta: number; percent: number | null }>;
+
+    const latest = displaySnapshots[0];
+    const earliest = displaySnapshots[displaySnapshots.length - 1];
+
+    return COMMUNITY_METRIC_KEYS.reduce((acc, key) => {
+      const latestValue = latest?.[key];
+      const earliestValue = earliest?.[key];
+      if (typeof latestValue === 'number' && typeof earliestValue === 'number') {
+        const delta = latestValue - earliestValue;
+        const percent = earliestValue !== 0 ? (delta / earliestValue) * 100 : null;
+        acc[key] = { delta, percent };
+      }
+      return acc;
+    }, {} as Record<CommunityMetricKey, { delta: number; percent: number | null }>);
+  }, [displaySnapshots]);
+
+  const renderCommunityStat = (label: string, value: number | undefined | null, key: CommunityMetricKey) => {
+    const change = metricChanges[key];
+    const isPositive = !!change && change.delta > 0;
+    const isNegative = !!change && change.delta < 0;
+
+    const deltaLabel = change ? `${change.delta >= 0 ? '+' : ''}${formatCompactAmount(change.delta)}` : null;
+    const percentLabel = change?.percent !== null && change?.percent !== undefined
+      ? `${change.percent >= 0 ? '+' : ''}${change.percent.toFixed(2)}%`
+      : null;
+    const arrow = isPositive ? '↑' : isNegative ? '↓' : '';
+
+    const toneClass = isPositive
+      ? 'bg-emerald-50/80 border-emerald-200'
+      : isNegative
+        ? 'bg-rose-50/80 border-rose-200'
+        : 'bg-muted/40 border-border';
+
+    return (
+      <div className={`relative flex flex-col gap-2 p-4 rounded-lg border transition-colors ${toneClass}`}>
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-sm text-muted-foreground">{label}</span>
+          {percentLabel && (
+            <span
+              className={
+                isPositive
+                  ? 'text-[11px] font-mono text-emerald-700 bg-emerald-500/15 px-2 py-0.5 rounded-full'
+                  : isNegative
+                    ? 'text-[11px] font-mono text-rose-700 bg-rose-500/15 px-2 py-0.5 rounded-full'
+                    : 'text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full'
+              }
+            >
+              {percentLabel}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-end justify-between gap-2">
+          <span className="text-2xl font-semibold leading-tight">{formatCompactAmount(value)}</span>
+          {deltaLabel && (
+            <span
+              className={
+                isPositive
+                  ? 'inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-500/15 px-2 py-1 rounded-md'
+                  : isNegative
+                    ? 'inline-flex items-center gap-1 text-xs font-medium text-rose-700 bg-rose-500/15 px-2 py-1 rounded-md'
+                    : 'inline-flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md'
+              }
+            >
+              {arrow && <span className="text-[11px]">{arrow}</span>}
+              <span>{deltaLabel}</span>
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderSkeleton = () => (
     <div className="space-y-6">
@@ -117,7 +215,10 @@ export default function Dashboard() {
               <div className="space-y-6 min-w-0">
                 {/* Section: Price Analysis */}
                 <section className="animate-fade-in-up-delay-1">
-                  <PriceChart snapshots={displaySnapshots} />
+                  <PriceChart
+                    snapshots={displaySnapshots}
+                    rangeDays={rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : 30}
+                  />
                 </section>
 
                 {/* Section: AMM Liquidity */}
@@ -145,30 +246,12 @@ export default function Dashboard() {
                       <p className="text-sm text-muted-foreground mt-1">核心地址与流动性数据</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm text-muted-foreground">持币人数</span>
-                        <span className="text-lg font-semibold">{formatAmount(latestSnapshot?.holders)}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm text-muted-foreground">10k+ 用户数</span>
-                        <span className="text-lg font-semibold">{formatAmount(latestSnapshot?.hodl_10k_addresses_count)}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm text-muted-foreground">Solana 创建用户数</span>
-                        <span className="text-lg font-semibold">{formatAmount(latestSnapshot?.new_accounts_via_solana)}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm text-muted-foreground">绑定 Solana 地址用户数</span>
-                        <span className="text-lg font-semibold">{formatAmount(latestSnapshot?.total_solana_addresses_linked)}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm text-muted-foreground">AMM 当前持有 $v2ex</span>
-                        <span className="text-lg font-semibold">{formatAmount(latestSnapshot?.main_amm_v2ex_amount)}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm text-muted-foreground">AMM 当前持有 sol</span>
-                        <span className="text-lg font-semibold">{formatAmount(latestSnapshot?.main_amm_sol_amount)}</span>
-                      </div>
+                      {renderCommunityStat('持币人数', latestSnapshot?.holders, 'holders')}
+                      {renderCommunityStat('10k+', latestSnapshot?.hodl_10k_addresses_count, 'hodl_10k_addresses_count')}
+                      {renderCommunityStat('Sol新注册', latestSnapshot?.new_accounts_via_solana, 'new_accounts_via_solana')}
+                      {renderCommunityStat('Sol新绑定', latestSnapshot?.total_solana_addresses_linked, 'total_solana_addresses_linked')}
+                      {renderCommunityStat('AMM-$v2ex', latestSnapshot?.main_amm_v2ex_amount, 'main_amm_v2ex_amount')}
+                      {renderCommunityStat('AMM-SOL', latestSnapshot?.main_amm_sol_amount, 'main_amm_sol_amount')}
                     </div>
                   </div>
                 </section>
