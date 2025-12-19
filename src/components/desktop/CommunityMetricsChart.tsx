@@ -27,6 +27,14 @@ const METRICS = [
   { key: 'new_accounts_via_solana', name: '新账户', color: '#a855f7', axis: 'right' as const },
 ] as const;
 
+const MAX_POINTS = 160;
+const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
 export default function CommunityMetricsChart({ snapshots, className }: CommunityMetricsChartProps) {
   const timeRange: TimeRange = '30d';
   const [relativeMode, setRelativeMode] = useState(true);
@@ -34,29 +42,13 @@ export default function CommunityMetricsChart({ snapshots, className }: Communit
     () => METRICS.reduce((acc, m) => ({ ...acc, [m.key]: true }), {})
   );
 
-  const chartData = useMemo(() => {
+  const sampledSeries = useMemo(() => {
     if (!snapshots.length) return [];
 
-    // Aggregate by day: take the latest snapshot of each day (snapshots already sorted desc)
-    const dailyMap = new Map<string, HodlSnapshot>();
-    snapshots.forEach((snap) => {
-      const dayKey = snap.created_at.slice(0, 10);
-      if (!dailyMap.has(dayKey)) {
-        dailyMap.set(dayKey, snap);
-      }
-    });
+    const sorted = [...snapshots].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
 
-    const daily = Array.from(dailyMap.entries())
-      .map(([date, snap]) => ({
-        date,
-        holders: snap.holders,
-        hodl_10k_addresses_count: snap.hodl_10k_addresses_count,
-        total_solana_addresses_linked: snap.total_solana_addresses_linked,
-        new_accounts_via_solana: snap.new_accounts_via_solana,
-      }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // Apply time range filtering
     const daysMap: Record<TimeRange, number> = {
       '7d': 7,
       '30d': 30,
@@ -65,20 +57,41 @@ export default function CommunityMetricsChart({ snapshots, className }: Communit
     const days = daysMap[timeRange];
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - (days - 1));
-    const filtered = daily.filter((d) => new Date(d.date) >= cutoff);
 
+    const filtered = sorted.filter((snap) => new Date(snap.created_at) >= cutoff);
     if (!filtered.length) return [];
 
-    if (!relativeMode) return filtered;
+    const sanitizeMetric = (value: number | undefined | null) =>
+      typeof value === 'number' && value !== 0 ? value : undefined;
 
-    // Normalize to relative % change from the first available point per metric
-    const base = filtered[0];
+    const chronological = filtered
+      .map((snap) => ({
+        date: snap.created_at,
+        label: timeFormatter.format(new Date(snap.created_at)),
+        holders: sanitizeMetric(snap.holders),
+        hodl_10k_addresses_count: sanitizeMetric(snap.hodl_10k_addresses_count),
+        total_solana_addresses_linked: sanitizeMetric(snap.total_solana_addresses_linked),
+        new_accounts_via_solana: sanitizeMetric(snap.new_accounts_via_solana),
+      }))
+      .filter((entry) =>
+        METRICS.some((metric) => typeof (entry as any)[metric.key] === 'number')
+      );
+
+    const sampleRate = Math.max(1, Math.ceil(chronological.length / MAX_POINTS));
+    return chronological.filter((_, idx) => idx % sampleRate === 0);
+  }, [snapshots, timeRange]);
+
+  const chartData = useMemo(() => {
+    if (!sampledSeries.length) return [];
+    if (!relativeMode) return sampledSeries;
+
+    const base = sampledSeries[0];
     const baseValues: Record<string, number | undefined> = METRICS.reduce((acc, metric) => {
       const v = (base as any)[metric.key];
       return { ...acc, [metric.key]: typeof v === 'number' && v !== 0 ? v : undefined };
     }, {} as Record<string, number | undefined>);
 
-    return filtered.map((entry) => {
+    return sampledSeries.map((entry) => {
       const next: Record<string, any> = { ...entry };
       METRICS.forEach((metric) => {
         const value = (entry as any)[metric.key];
@@ -91,7 +104,7 @@ export default function CommunityMetricsChart({ snapshots, className }: Communit
       });
       return next;
     });
-  }, [snapshots, timeRange, relativeMode]);
+  }, [relativeMode, sampledSeries]);
 
   const axisDomains = useMemo(() => {
     if (relativeMode) {
@@ -177,7 +190,13 @@ export default function CommunityMetricsChart({ snapshots, className }: Communit
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-            <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+            <XAxis
+              dataKey="label"
+              stroke="hsl(var(--muted-foreground))"
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+            />
             <YAxis
               yAxisId="left"
               stroke="hsl(var(--muted-foreground))"
@@ -199,7 +218,7 @@ export default function CommunityMetricsChart({ snapshots, className }: Communit
             />
             <Tooltip
               formatter={(value: number, name: string) => [relativeMode ? formatPercent(value) : formatAmount(value), name]}
-              labelFormatter={(label) => label}
+              labelFormatter={(label) => label as string}
               contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))' }}
             />
             {METRICS.filter((m) => visibleMetrics[m.key]).map((metric) => (
@@ -212,6 +231,7 @@ export default function CommunityMetricsChart({ snapshots, className }: Communit
                 stroke={metric.color}
                 strokeWidth={2}
                 dot={false}
+                connectNulls
               />
             ))}
           </LineChart>
