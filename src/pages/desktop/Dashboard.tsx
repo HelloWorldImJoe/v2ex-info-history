@@ -153,10 +153,22 @@ export default function Dashboard() {
     const arrow = isPositive ? '↑' : isNegative ? '↓' : '';
 
     const toneClass = isPositive
-      ? 'bg-emerald-50/80 border-emerald-200'
+      ? 'bg-[hsl(var(--trend-up)/0.12)] border-[hsl(var(--trend-up)/0.25)]'
       : isNegative
-        ? 'bg-rose-50/80 border-rose-200'
+        ? 'bg-[hsl(var(--trend-down)/0.12)] border-[hsl(var(--trend-down)/0.25)]'
         : 'bg-muted/40 border-border';
+
+    const badgeToneClass = isPositive
+      ? 'text-[hsl(var(--trend-up))] bg-[hsl(var(--trend-up)/0.18)]'
+      : isNegative
+        ? 'text-[hsl(var(--trend-down))] bg-[hsl(var(--trend-down)/0.18)]'
+        : 'text-muted-foreground bg-muted/70';
+
+    const chipToneClass = isPositive
+      ? 'text-[hsl(var(--trend-up))] bg-[hsl(var(--trend-up)/0.16)]'
+      : isNegative
+        ? 'text-[hsl(var(--trend-down))] bg-[hsl(var(--trend-down)/0.16)]'
+        : 'text-muted-foreground bg-muted/70';
 
     return (
       <div className={`relative flex flex-col gap-2 p-4 rounded-lg border transition-colors ${toneClass}`}>
@@ -164,13 +176,7 @@ export default function Dashboard() {
           <span className="text-sm text-muted-foreground">{label}</span>
           {percentLabel && (
             <span
-              className={
-                isPositive
-                  ? 'text-[11px] font-mono text-emerald-700 bg-emerald-500/15 px-2 py-0.5 rounded-full'
-                  : isNegative
-                    ? 'text-[11px] font-mono text-rose-700 bg-rose-500/15 px-2 py-0.5 rounded-full'
-                    : 'text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full'
-              }
+              className={`text-[11px] font-mono px-2 py-0.5 rounded-full ${badgeToneClass}`}
             >
               {percentLabel}
             </span>
@@ -180,15 +186,7 @@ export default function Dashboard() {
         <div className="flex items-end justify-between gap-2">
           <span className="text-2xl font-semibold leading-tight">{formatCompactAmount(value)}</span>
           {deltaLabel && (
-            <span
-              className={
-                isPositive
-                  ? 'inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-500/15 px-2 py-1 rounded-md'
-                  : isNegative
-                    ? 'inline-flex items-center gap-1 text-xs font-medium text-rose-700 bg-rose-500/15 px-2 py-1 rounded-md'
-                    : 'inline-flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md'
-              }
-            >
+            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md ${chipToneClass}`}>
               {arrow && <span className="text-[11px]">{arrow}</span>}
               <span>{deltaLabel}</span>
             </span>
