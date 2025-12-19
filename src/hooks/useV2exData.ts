@@ -229,10 +229,23 @@ export function useV2exData(range: DataRange = { type: 'preset', days: 3 }) {
     let mergedAddressDetails: SolanaAddressDetail[] = [];
     let mergedAddressesRemoved: SolanaAddressRemoved[] = [];
     let latestAddresses: SolanaAddress[] = [];
+    let consecutiveMissingDays = 0;
 
     for (const dateStr of dateStrings) {
       const dayData = await fetchDataForDate(dateStr);
-      if (!dayData) continue;
+      
+      if (!dayData) {
+        consecutiveMissingDays++;
+        // 如果连续三天数据不存在，停止请求
+        if (consecutiveMissingDays >= 3) {
+          console.log(`连续${consecutiveMissingDays}天数据不存在，停止请求`);
+          break;
+        }
+        continue;
+      }
+      
+      // 重置连续缺失天数计数器
+      consecutiveMissingDays = 0;
 
       if (dayData.snapshots?.length) {
         mergedSnapshots = mergedSnapshots.concat(dayData.snapshots.map(sanitizeSnapshot));

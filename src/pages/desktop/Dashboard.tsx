@@ -8,7 +8,7 @@ import OnlineUsersChart from '@/components/desktop/OnlineUsersChart';
 import HolderChanges from '@/components/desktop/HolderChanges';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type RangeOption = '3d' | '7d' | '30d';
+type RangeOption = '3d' | '7d' | '30d' | '90d' | 'all';
 const COMMUNITY_METRIC_KEYS = [
   'holders',
   'hodl_10k_addresses_count',
@@ -39,11 +39,27 @@ export default function Dashboard() {
   const [isSwitching, setIsSwitching] = useState(false);
 
   const handleRangeOptionChange = (opt: RangeOption) => {
-    const days = opt === '3d' ? 3 : opt === '7d' ? 7 : 30;
+    const days =
+      opt === '3d'
+        ? 3
+        : opt === '7d'
+          ? 7
+          : opt === '30d'
+            ? 30
+            : opt === '90d'
+              ? 90
+              : 3650; // 足够覆盖全部历史数据，实际请求会因缺失天数停止
+    const needsFetch = days > fetchDays;
+
+    if ((opt === '30d' || opt === '90d' || opt === 'all') && needsFetch) {
+      const confirmed = window.confirm('数据量较大，加载可能需要一些时间，确定继续吗？');
+      if (!confirmed) return;
+    }
+
     setRangeOption(opt);
 
     // Only trigger a fetch when expanding the window; shrinking reuses existing data
-    if (days > fetchDays) {
+    if (needsFetch) {
       setIsSwitching(true);
       setFetchDays(days);
     } else {
@@ -62,14 +78,22 @@ export default function Dashboard() {
   }, [loading]);
 
   const displaySnapshots = useMemo(() => {
-    const days = rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : 30;
+    if (rangeOption === 'all') {
+      return data.snapshots;
+    }
+
+    const days = rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : rangeOption === '30d' ? 30 : 90;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - (days - 1));
     return data.snapshots.filter((s) => new Date(s.created_at) >= cutoff);
   }, [data.snapshots, rangeOption]);
 
   const displayAddressChanges = useMemo(() => {
-    const days = rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : 30;
+    if (rangeOption === 'all') {
+      return data.addressDetails;
+    }
+
+    const days = rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : rangeOption === '30d' ? 30 : 90;
     const now = new Date();
     const cutoffDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     cutoffDate.setUTCDate(cutoffDate.getUTCDate() - (days - 1));
@@ -78,7 +102,11 @@ export default function Dashboard() {
   }, [data.addressDetails, rangeOption]);
 
   const displayRemovedAddresses = useMemo(() => {
-    const days = rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : 30;
+    if (rangeOption === 'all') {
+      return data.addressesRemoved;
+    }
+
+    const days = rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : rangeOption === '30d' ? 30 : 90;
     const now = new Date();
     const cutoffDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     cutoffDate.setUTCDate(cutoffDate.getUTCDate() - (days - 1));
@@ -89,12 +117,21 @@ export default function Dashboard() {
   const metricChanges = useMemo(() => {
     if (!displaySnapshots.length) return {} as Record<CommunityMetricKey, { delta: number; percent: number | null }>;
 
-    const latest = displaySnapshots[0];
-    const earliest = displaySnapshots[displaySnapshots.length - 1];
-
+    // 找到每个指标的最新与最早可用值（兼容早期缺失字段）
     return COMMUNITY_METRIC_KEYS.reduce((acc, key) => {
-      const latestValue = latest?.[key];
-      const earliestValue = earliest?.[key];
+      const latestWithValue = displaySnapshots.find((snap) => typeof snap?.[key] === 'number');
+
+      // 对后添加的字段，基准从第一条非零记录开始；若找不到非零，则退回到任何有值的最早记录
+      const reversed = [...displaySnapshots].reverse();
+      const earliestNonZero = reversed.find((snap) => {
+        const val = snap?.[key];
+        return typeof val === 'number' && val !== 0;
+      });
+      const earliestWithValue = earliestNonZero ?? reversed.find((snap) => typeof snap?.[key] === 'number');
+
+      const latestValue = latestWithValue?.[key];
+      const earliestValue = earliestWithValue?.[key];
+
       if (typeof latestValue === 'number' && typeof earliestValue === 'number') {
         const delta = latestValue - earliestValue;
         const percent = earliestValue !== 0 ? (delta / earliestValue) * 100 : null;
@@ -217,7 +254,17 @@ export default function Dashboard() {
                 <section className="animate-fade-in-up-delay-1">
                   <PriceChart
                     snapshots={displaySnapshots}
-                    rangeDays={rangeOption === '3d' ? 3 : rangeOption === '7d' ? 7 : 30}
+                    rangeDays={
+                      rangeOption === '3d'
+                        ? 3
+                        : rangeOption === '7d'
+                          ? 7
+                          : rangeOption === '30d'
+                            ? 30
+                            : rangeOption === '90d'
+                              ? 90
+                              : displaySnapshots.length || data.snapshots.length
+                    }
                   />
                 </section>
 

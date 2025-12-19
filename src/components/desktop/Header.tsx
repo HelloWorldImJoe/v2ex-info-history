@@ -3,7 +3,7 @@ import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-type RangeOption = '3d' | '7d' | '30d';
+type RangeOption = '3d' | '7d' | '30d' | '90d' | 'all';
 
 interface HeaderProps {
   lastUpdated: string | null;
@@ -28,10 +28,7 @@ export default function Header({
     return date.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+      day: '2-digit'
     });
   };
 
@@ -41,10 +38,10 @@ export default function Header({
         {/* Logo & Title */}
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold font-mono tracking-tight">
-            V2EX 数据中心
+            V2EX数据看板
           </h1>
           <span className="text-xs text-muted-foreground hidden sm:inline-block">
-            {formatLastUpdated(lastUpdated)}
+            ( 2025-11-08 ~ {formatLastUpdated(lastUpdated)} )
           </span>
         </div>
 
@@ -52,7 +49,7 @@ export default function Header({
         <div className="flex items-center gap-2">
           <div className="flex flex-wrap items-center gap-2 mr-2 text-xs text-muted-foreground">
             <span>数据区间:</span>
-            {(['3d', '7d', '30d'] as RangeOption[]).map((opt) => (
+            {(['3d', '7d', '30d', '90d', 'all'] as RangeOption[]).map((opt) => (
               <button
                 key={opt}
                 onClick={() => onRangeOptionChange(opt)}
@@ -63,7 +60,15 @@ export default function Header({
                     : 'border-border text-foreground hover:bg-muted'
                 )}
               >
-                {opt === '3d' ? '3天' : opt === '7d' ? '7天' : '30天'}
+                {opt === '3d'
+                  ? '3天'
+                  : opt === '7d'
+                    ? '7天'
+                    : opt === '30d'
+                      ? '30天'
+                      : opt === '90d'
+                        ? '90天'
+                        : '全部'}
               </button>
             ))}
           </div>
