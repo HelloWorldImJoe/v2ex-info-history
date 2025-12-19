@@ -35,7 +35,11 @@ const sanitizePriceValue = (value?: number | null) => {
   return value > 0 ? value : undefined;
 };
 
-const getAxisId = (key: string) => (key === 'sol_price' || key === 'btc_price' ? 'right' : 'left');
+const getAxisId = (key: string, isRelative: boolean) => {
+  if (isRelative) return key === 'price' || key === 'pump_price' ? 'left' : 'right';
+  if (key === 'price' || key === 'pump_price') return 'left';
+  return key;
+};
 
 const INDICATOR_COLORS = {
   ma: '#8B5CF6',
@@ -329,12 +333,43 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
     setZoomDomain(null);
   };
 
-  const getDisplayData = () => {
+  const displayData = useMemo(() => {
     if (!zoomDomain) return activeData;
     return activeData.slice(zoomDomain.left, zoomDomain.right + 1);
+  }, [activeData, zoomDomain]);
+
+  const computeDomain = (data: any[], keys: string[]): [number | 'auto', number | 'auto'] => {
+    const values = data
+      .flatMap((item) => keys.map((key) => item[key]))
+      .filter((v) => typeof v === 'number') as number[];
+
+    if (!values.length) return ['auto', 'auto'];
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+    const padding = span === 0 ? Math.max(Math.abs(min) * 0.05, 0.0001) : span * 0.1;
+
+    return [min - padding, max + padding];
   };
 
-  const displayData = getDisplayData();
+  const yDomains = useMemo<Record<string, [number | 'auto', number | 'auto']>>(() => {
+    const axes = isRelative
+      ? {
+          left: ['price', 'pump_price'],
+          right: ['sol_price', 'btc_price'],
+        }
+      : {
+          left: ['price', 'pump_price'],
+          sol_price: ['sol_price'],
+          btc_price: ['btc_price'],
+        };
+
+    return Object.entries(axes).reduce((acc, [axis, keys]) => {
+      acc[axis] = computeDomain(displayData, keys);
+      return acc;
+    }, {} as Record<string, [number | 'auto', number | 'auto']>);
+  }, [displayData, isRelative]);
 
   const formatYAxis = (value: number, coinKey: string) => {
     if (isRelative) {
@@ -558,18 +593,45 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(v) => formatYAxis(v, 'price')}
-                domain={['auto', 'auto']}
+                domain={yDomains.left}
               />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => formatYAxis(v, 'btc_price')}
-                domain={['auto', 'auto']}
-              />
+              {isRelative ? (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => formatYAxis(v, 'btc_price')}
+                  domain={yDomains.right}
+                />
+              ) : (
+                <>
+                  <YAxis
+                    yAxisId="sol_price"
+                    orientation="right"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => formatYAxis(v, 'sol_price')}
+                    domain={yDomains.sol_price}
+                    width={70}
+                  />
+                  <YAxis
+                    yAxisId="btc_price"
+                    orientation="right"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => formatYAxis(v, 'btc_price')}
+                    domain={yDomains.btc_price}
+                    width={80}
+                  />
+                </>
+              )}
               <Tooltip content={<CustomTooltip />} />
               
               {/* Reference area for zoom selection */}
@@ -597,7 +659,7 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
               {COINS.filter((coin) => visibleCoins[coin.key]).map((coin) => (
                 <Line
                   key={coin.key}
-                  yAxisId={getAxisId(coin.key)}
+                  yAxisId={getAxisId(coin.key, isRelative)}
                   type="monotone"
                   dataKey={coin.key}
                   stroke={coin.color}
@@ -611,7 +673,7 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
               {showMA && COINS.filter((coin) => visibleCoins[coin.key]).map((coin) => (
                 <Line
                   key={`ma-${coin.key}`}
-                  yAxisId={getAxisId(coin.key)}
+                  yAxisId={getAxisId(coin.key, isRelative)}
                   type="monotone"
                   dataKey={`ma_${coin.key}`}
                   stroke={getIndicatorColor('ma', coin.color)}
@@ -628,7 +690,7 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
               {showEMA && COINS.filter((coin) => visibleCoins[coin.key]).map((coin) => (
                 <Line
                   key={`ema-${coin.key}`}
-                  yAxisId={getAxisId(coin.key)}
+                  yAxisId={getAxisId(coin.key, isRelative)}
                   type="monotone"
                   dataKey={`ema_${coin.key}`}
                   stroke={getIndicatorColor('ema', coin.color)}
@@ -645,7 +707,7 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
               {showBoll && COINS.filter((coin) => visibleCoins[coin.key]).flatMap((coin) => ([
                 <Line
                   key={`boll-upper-${coin.key}`}
-                  yAxisId={getAxisId(coin.key)}
+                  yAxisId={getAxisId(coin.key, isRelative)}
                   type="monotone"
                   dataKey={`boll_upper_${coin.key}`}
                   stroke={getIndicatorColor('boll', coin.color)}
@@ -658,7 +720,7 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
                 />,
                 <Line
                   key={`boll-lower-${coin.key}`}
-                  yAxisId={getAxisId(coin.key)}
+                  yAxisId={getAxisId(coin.key, isRelative)}
                   type="monotone"
                   dataKey={`boll_lower_${coin.key}`}
                   stroke={getIndicatorColor('boll', coin.color)}
