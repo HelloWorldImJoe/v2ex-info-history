@@ -76,6 +76,9 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 				<div className="flex items-start justify-between gap-4">
 					<div className="flex-1 min-w-0">
 						<div className="flex items-center gap-2">
+							<span className="px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+								#{entry.hold_rank}
+							</span>
 							{meta?.imageUrl ? (
 								<img
 									src={meta.imageUrl}
@@ -90,9 +93,6 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 								<span className="text-sm font-medium truncate">{displayName}</span>
 								<span className="text-xs text-muted-foreground font-mono truncate">{truncateAddress(entry.owner_address)}</span>
 							</div>
-							<span className="px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground">
-								#{entry.hold_rank}
-							</span>
 							{entry.rank_delta !== 0 && (
 								<span
 									className={cn(

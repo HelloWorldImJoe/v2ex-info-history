@@ -39,7 +39,7 @@ export default function Dashboard() {
   const [isSwitching, setIsSwitching] = useState(false);
 
   const handleRangeOptionChange = (opt: RangeOption) => {
-    const days =
+    let days =
       opt === '3d'
         ? 3
         : opt === '7d'
@@ -49,6 +49,7 @@ export default function Dashboard() {
             : opt === '90d'
               ? 90
               : 3650; // 足够覆盖全部历史数据，实际请求会因缺失天数停止
+    days += 1;
     const needsFetch = days > fetchDays;
 
     if ((opt === '30d' || opt === '90d' || opt === 'all') && needsFetch) {
