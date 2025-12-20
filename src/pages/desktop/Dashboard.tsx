@@ -70,7 +70,7 @@ export default function Dashboard() {
 
   const dataRange: DataRange = useMemo(() => ({ type: 'preset', days: fetchDays }), [fetchDays]);
 
-  const { data, loading, error, refresh, latestSnapshot } = useV2exData(dataRange);
+  const { data, loading, error, refresh, latestSnapshot, currentFetchingDate } = useV2exData(dataRange);
 
   useEffect(() => {
     if (!loading) {
@@ -228,6 +228,11 @@ export default function Dashboard() {
           <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
             <div className="h-10 w-10 border-2 border-primary border-t-transparent rounded-full animate-spin" aria-hidden="true" />
             <span>数据加载中…</span>
+            {currentFetchingDate && (
+              <span className="text-xs text-muted-foreground/80">
+                正在请求日期：{currentFetchingDate}
+              </span>
+            )}
           </div>
         </div>
       )}

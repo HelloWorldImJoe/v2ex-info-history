@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { truncateAddress, formatAmount } from '@/hooks/useV2exData';
 import { ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react';
@@ -18,6 +18,8 @@ const LP_URL = 'https://raw.githubusercontent.com/GrabCoffee/v2ex-info-newslette
 type DisplayChange =
 	| (SolanaAddressDetail & { source: 'change' })
 	| (SolanaAddressRemoved & { source: 'removed' });
+
+type DisplayChangeWithDelta = DisplayChange & { computedDelta: number };
 
 export default function HolderChanges({ changes, removed, className }: HolderChangesProps) {
 	const [lpMeta, setLpMeta] = useState<LpMetadata>({});
@@ -55,9 +57,9 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 		});
 	};
 
-	const renderItem = (entry: DisplayChange) => {
+	const renderItem = (entry: DisplayChangeWithDelta) => {
 		const isRemoval = entry.source === 'removed';
-		const amountDelta = isRemoval ? -entry.hold_amount : entry.amount_delta;
+		const amountDelta = entry.computedDelta;
 		const isIncrease = amountDelta > 0;
 		const isLargeChange = Math.abs(amountDelta) > 100000;
 		const meta = lpMeta[entry.owner_address];
@@ -143,8 +145,59 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 		);
 	};
 
-	const recentChanges: DisplayChange[] = changes.map((c) => ({ ...c, source: 'change' as const }));
-	const removedChanges: DisplayChange[] = removed.map((r) => ({ ...r, source: 'removed' as const }));
+	const getTimestamp = (entry: DisplayChange) =>
+		new Date(entry.source === 'removed' ? entry.removed_at : entry.changed_at).getTime();
+
+	const makeKey = (entry: DisplayChange) => `${entry.source}-${entry.id}`;
+
+	const { recentChanges, removedChanges } = useMemo(() => {
+		const allEntries: DisplayChange[] = [
+			...changes.map((c) => ({ ...c, source: 'change' as const })),
+			...removed.map((r) => ({ ...r, source: 'removed' as const })),
+		];
+
+		const groupedByAddress = new Map<string, DisplayChange[]>();
+		allEntries.forEach((entry) => {
+			if (!groupedByAddress.has(entry.owner_address)) {
+				groupedByAddress.set(entry.owner_address, []);
+			}
+			groupedByAddress.get(entry.owner_address)!.push(entry);
+		});
+
+		const deltaMap = new Map<string, number>();
+
+		groupedByAddress.forEach((entries) => {
+			const chronological = [...entries].sort((a, b) => getTimestamp(a) - getTimestamp(b));
+			let prevHoldAmount: number | null = null;
+
+			chronological.forEach((entry) => {
+				let delta: number;
+				if (prevHoldAmount !== null) {
+					delta = entry.hold_amount - prevHoldAmount;
+				} else if (entry.source === 'change') {
+					delta = entry.amount_delta;
+				} else {
+					delta = -entry.hold_amount;
+				}
+
+				deltaMap.set(makeKey(entry), delta);
+				prevHoldAmount = entry.hold_amount;
+			});
+		});
+
+		const withDelta: DisplayChangeWithDelta[] = allEntries
+			.map((entry) => {
+				const computedDelta = deltaMap.get(makeKey(entry)) ?? (entry.source === 'change' ? entry.amount_delta : -entry.hold_amount);
+				return { ...entry, computedDelta };
+			})
+			.sort((a, b) => getTimestamp(b) - getTimestamp(a));
+
+		return {
+			recentChanges: withDelta.filter((entry) => entry.source === 'change'),
+			removedChanges: withDelta.filter((entry) => entry.source === 'removed'),
+		};
+	}, [changes, removed]);
+
 	const hasRecentChanges = recentChanges.length > 0;
 	const hasRemovedChanges = removedChanges.length > 0;
 

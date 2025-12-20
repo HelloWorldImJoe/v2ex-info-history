@@ -192,6 +192,7 @@ export function useV2exData(range: DataRange = { type: 'preset', days: 3 }) {
     lastUpdated: null,
   });
   const [loading, setLoading] = useState(true);
+  const [currentFetchingDate, setCurrentFetchingDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const rangeKey = useMemo(() => getRangeKey(range), [range]);
@@ -199,6 +200,7 @@ export function useV2exData(range: DataRange = { type: 'preset', days: 3 }) {
   const fetchData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
+    setCurrentFetchingDate(null);
 
     // Check cache first
     if (!forceRefresh) {
@@ -214,6 +216,7 @@ export function useV2exData(range: DataRange = { type: 'preset', days: 3 }) {
               addressesRemoved: cachedData.addressesRemoved || [],
               lastUpdated: cachedData.lastUpdated || null,
             });
+            setCurrentFetchingDate(null);
             setLoading(false);
             return;
           }
@@ -232,6 +235,7 @@ export function useV2exData(range: DataRange = { type: 'preset', days: 3 }) {
     let consecutiveMissingDays = 0;
 
     for (const dateStr of dateStrings) {
+      setCurrentFetchingDate(dateStr);
       const dayData = await fetchDataForDate(dateStr);
       
       if (!dayData) {
@@ -321,6 +325,7 @@ export function useV2exData(range: DataRange = { type: 'preset', days: 3 }) {
       setError('无法获取数据，请稍后重试');
     }
 
+    setCurrentFetchingDate(null);
     setLoading(false);
   }, [range, rangeKey]);
 
@@ -348,6 +353,7 @@ export function useV2exData(range: DataRange = { type: 'preset', days: 3 }) {
     error,
     refresh,
     latestSnapshot,
+    currentFetchingDate,
     marketCap: calculateMarketCap(),
   };
 }
