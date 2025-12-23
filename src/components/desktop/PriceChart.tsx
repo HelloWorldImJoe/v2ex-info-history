@@ -617,7 +617,7 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
                     axisLine={false}
                     tickFormatter={(v) => formatYAxis(v, 'sol_price')}
                     domain={yDomains.sol_price}
-                    width={70}
+                    width={40}
                   />
                   <YAxis
                     yAxisId="btc_price"
@@ -628,7 +628,7 @@ export default function PriceChart({ snapshots, rangeDays, className }: PriceCha
                     axisLine={false}
                     tickFormatter={(v) => formatYAxis(v, 'btc_price')}
                     domain={yDomains.btc_price}
-                    width={80}
+                    width={40}
                   />
                 </>
               )}
