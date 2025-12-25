@@ -16,6 +16,12 @@ const COMMUNITY_METRIC_KEYS = [
   'total_solana_addresses_linked',
   'main_amm_v2ex_amount',
   'main_amm_sol_amount',
+  'sol_tip_operations_count',
+  'member_tips_sent',
+  'member_tips_received',
+  'total_sol_tip_amount',
+  'v2ex_token_tip_count',
+  'total_v2ex_token_tip_amount',
 ] as const;
 type CommunityMetricKey = (typeof COMMUNITY_METRIC_KEYS)[number];
 
@@ -172,7 +178,7 @@ export default function Dashboard() {
         : 'text-muted-foreground bg-muted/70';
 
     return (
-      <div className={`relative flex flex-col gap-2 p-4 rounded-lg border transition-colors ${toneClass}`}>
+      <div className={`relative flex flex-col gap-2 p-4 rounded-lg border transition-colors min-h-[120px] ${toneClass}`}>
         <div className="flex items-start justify-between gap-2">
           <span className="text-sm text-muted-foreground">{label}</span>
           {percentLabel && (
@@ -252,7 +258,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 xl:grid-cols-[1.7fr_1fr] gap-6 items-start">
+            <div className="grid grid-cols-1 xl:grid-cols-[1.7fr_1fr] gap-6 items-stretch">
               <div className="space-y-6 min-w-0">
                 {/* Section: Price Analysis */}
                 <section className="animate-fade-in-up-delay-1">
@@ -288,7 +294,7 @@ export default function Dashboard() {
                 </section>
               </div>
 
-              <div className="space-y-6 min-w-0">
+              <div className="space-y-6 min-w-0 flex flex-col h-full min-h-0">
                 {/* Section: Community Stats */}
                 <section className="animate-fade-in-up">
                   <div className="bg-card border border-border rounded-lg">
@@ -303,13 +309,23 @@ export default function Dashboard() {
                       {renderCommunityStat('Sol新绑定', latestSnapshot?.total_solana_addresses_linked, 'total_solana_addresses_linked')}
                       {renderCommunityStat('AMM-$v2ex', latestSnapshot?.main_amm_v2ex_amount, 'main_amm_v2ex_amount')}
                       {renderCommunityStat('AMM-SOL', latestSnapshot?.main_amm_sol_amount, 'main_amm_sol_amount')}
+                      {renderCommunityStat('SOL 打赏次数', latestSnapshot?.sol_tip_operations_count, 'sol_tip_operations_count')}
+                      {renderCommunityStat('打赏发送会员数', latestSnapshot?.member_tips_sent, 'member_tips_sent')}
+                      {renderCommunityStat('打赏获赏会员数', latestSnapshot?.member_tips_received, 'member_tips_received')}
+                      {renderCommunityStat('SOL 打赏总额', latestSnapshot?.total_sol_tip_amount, 'total_sol_tip_amount')}
+                      {renderCommunityStat('$V2EX 打赏次数', latestSnapshot?.v2ex_token_tip_count, 'v2ex_token_tip_count')}
+                      {renderCommunityStat('$V2EX 打赏总额', latestSnapshot?.total_v2ex_token_tip_amount, 'total_v2ex_token_tip_amount')}
                     </div>
                   </div>
                 </section>
 
                 {/* Section: Holder Changes */}
-                <section className="animate-fade-in-up-delay-3">
-                  <HolderChanges changes={displayAddressChanges} removed={displayRemovedAddresses} />
+                <section className="animate-fade-in-up-delay-3 flex-1 min-h-0">
+                  <HolderChanges
+                    changes={displayAddressChanges}
+                    removed={displayRemovedAddresses}
+                    className="flex-1 min-h-0"
+                  />
                 </section>
               </div>
             </div>

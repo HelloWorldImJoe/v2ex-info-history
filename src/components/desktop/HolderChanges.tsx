@@ -202,14 +202,22 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 	const hasRemovedChanges = removedChanges.length > 0;
 
 	return (
-		<div className={cn('space-y-4', className)}>
+		<div
+			className={cn(
+				'flex flex-col gap-4 min-h-0 min-w-0 overflow-hidden self-start h-[calc(100vh+160px)] max-h-[calc(100vh+160px)]',
+				className
+			)}
+		>
 			{hasRemovedChanges && (
-				<div className="bg-card border border-border rounded-lg">
+				<div
+					className="bg-card border border-border rounded-lg flex flex-col flex-none min-h-0 min-w-0 overflow-hidden"
+					style={{ maxHeight: '50%' }}
+				>
 					<div className="p-5 border-b border-border">
 						<h3 className="text-lg font-semibold">大额减持(Top120)</h3>
 						<p className="text-sm text-muted-foreground mt-1">最近移出前120名的地址</p>
 					</div>
-					<div className="max-h-[840px] overflow-y-auto scrollbar-thin">
+					<div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
 						<div className="divide-y divide-border/50">
 							{removedChanges.map(renderItem)}
 						</div>
@@ -217,13 +225,13 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 				</div>
 			)}
 
-			<div className="bg-card border border-border rounded-lg">
+			<div className="bg-card border border-border rounded-lg flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
 				<div className="p-5 border-b border-border">
 					<h3 className="text-lg font-semibold">持仓变化动态</h3>
 					<p className="text-sm text-muted-foreground mt-1">最近的持仓变化记录</p>
 				</div>
 
-				<div className="max-h-[840px] overflow-y-auto scrollbar-thin">
+				<div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
 					{hasRecentChanges ? (
 						<div className="divide-y divide-border/50">
 							{recentChanges.map(renderItem)}
