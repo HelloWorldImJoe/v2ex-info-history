@@ -37,17 +37,30 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 		const loadV2exerMeta = async () => {
 			try {
 				const cached = localStorage.getItem(V2EXER_CACHE_KEY);
+				const now = Date.now();
+				const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 				if (cached) {
-					const parsed = JSON.parse(cached) as V2exerMetadata;
-					setV2exerMeta(parsed);
-					return;
+					const { data, timestamp } = JSON.parse(cached) as {
+						data: V2exerMetadata;
+						timestamp: number;
+					};
+					
+					// 检查缓存是否过期（超过24小时）
+					if (now - timestamp < ONE_DAY_MS) {
+						setV2exerMeta(data);
+						return;
+					}
 				}
 
 				const resp = await fetch(V2EXER_URL);
 				if (!resp.ok) return;
 				const json = (await resp.json()) as V2exerMetadata;
 				setV2exerMeta(json);
-				localStorage.setItem(V2EXER_CACHE_KEY, JSON.stringify(json));
+				localStorage.setItem(
+					V2EXER_CACHE_KEY,
+					JSON.stringify({ data: json, timestamp: now })
+				);
 			} catch (err) {
 				console.error('Load v2exer.json failed', err);
 			}
