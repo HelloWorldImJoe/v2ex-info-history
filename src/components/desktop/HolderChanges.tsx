@@ -10,10 +10,19 @@ interface HolderChangesProps {
 	className?: string;
 }
 
-type LpMetadata = Record<string, { name?: string; imageUrl?: string }>;
+type V2exerMetadata = Record<
+	string,
+	{
+		id: number;
+		v2ex_username?: string;
+		avatar_url?: string | null;
+		created_at: string;
+		updated_at: string;
+	}
+>;
 
-const LP_CACHE_KEY = 'lp_metadata_cache_v1';
-const LP_URL = 'https://raw.githubusercontent.com/GrabCoffee/v2ex-info-newsletter-data/master/lp.json';
+const V2EXER_CACHE_KEY = 'v2exer_metadata_cache_v1';
+const V2EXER_URL = 'https://raw.githubusercontent.com/GrabCoffee/v2ex-info-newsletter-data/master/v2exer.json';
 
 type DisplayChange =
 	| (SolanaAddressDetail & { source: 'change' })
@@ -22,29 +31,29 @@ type DisplayChange =
 type DisplayChangeWithDelta = DisplayChange & { computedDelta: number };
 
 export default function HolderChanges({ changes, removed, className }: HolderChangesProps) {
-	const [lpMeta, setLpMeta] = useState<LpMetadata>({});
+	const [v2exerMeta, setV2exerMeta] = useState<V2exerMetadata>({});
 
 	useEffect(() => {
-		const loadLpMeta = async () => {
+		const loadV2exerMeta = async () => {
 			try {
-				const cached = localStorage.getItem(LP_CACHE_KEY);
+				const cached = localStorage.getItem(V2EXER_CACHE_KEY);
 				if (cached) {
-					const parsed = JSON.parse(cached) as LpMetadata;
-					setLpMeta(parsed);
+					const parsed = JSON.parse(cached) as V2exerMetadata;
+					setV2exerMeta(parsed);
 					return;
 				}
 
-				const resp = await fetch(LP_URL);
+				const resp = await fetch(V2EXER_URL);
 				if (!resp.ok) return;
-				const json = (await resp.json()) as LpMetadata;
-				setLpMeta(json);
-				localStorage.setItem(LP_CACHE_KEY, JSON.stringify(json));
+				const json = (await resp.json()) as V2exerMetadata;
+				setV2exerMeta(json);
+				localStorage.setItem(V2EXER_CACHE_KEY, JSON.stringify(json));
 			} catch (err) {
-				console.error('Load lp.json failed', err);
+				console.error('Load v2exer.json failed', err);
 			}
 		};
 
-		loadLpMeta();
+		loadV2exerMeta();
 	}, []);
 
 	const formatTime = (dateStr: string) => {
@@ -62,8 +71,10 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 		const amountDelta = entry.computedDelta;
 		const isIncrease = amountDelta > 0;
 		const isLargeChange = Math.abs(amountDelta) > 100000;
-		const meta = lpMeta[entry.owner_address];
-		const displayName = meta?.name ? meta.name.replace(/\s+/g, ' ') : truncateAddress(entry.owner_address);
+		const meta = v2exerMeta[entry.owner_address];
+		const displayName =
+			meta?.v2ex_username?.trim() || entry.v2ex_username?.trim() || truncateAddress(entry.owner_address);
+		const avatarUrl = meta?.avatar_url || entry.avatar_url || undefined;
 		const timestamp = isRemoval ? entry.removed_at : entry.changed_at;
 		const key = `${entry.source}-${entry.id}`;
 
@@ -81,9 +92,9 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 							<span className="px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground">
 								#{entry.hold_rank}
 							</span>
-							{meta?.imageUrl ? (
+							{avatarUrl ? (
 								<img
-									src={meta.imageUrl}
+									src={avatarUrl}
 									alt={displayName}
 									className="h-6 w-6 rounded-full border border-border object-cover"
 									loading="lazy"
