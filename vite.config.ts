@@ -12,6 +12,7 @@ export default defineConfig({
         { src: "avatar.ico", dest: "" },
         { src: "avatar.png", dest: "" },
         { src: "planet.json", dest: "" },
+        { src: "Ads.txt", dest: "" },
       ],
     }),
   ],
