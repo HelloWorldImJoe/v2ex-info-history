@@ -137,7 +137,7 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 							<span>{formatTime(timestamp)}</span>
 							{isRemoval && (
 								<span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-									移出前120名
+									移出前50名
 								</span>
 							)}
 						</div>
@@ -238,8 +238,8 @@ export default function HolderChanges({ changes, removed, className }: HolderCha
 					style={{ maxHeight: '50%' }}
 				>
 					<div className="p-5 border-b border-border">
-						<h3 className="text-lg font-semibold">大额减持(Top120)</h3>
-						<p className="text-sm text-muted-foreground mt-1">最近移出前120名的地址</p>
+						<h3 className="text-lg font-semibold">大额减持(Top50)</h3>
+						<p className="text-sm text-muted-foreground mt-1">最近移出前50名的地址(因为接口不稳定, 所以这个数据仅供参考, 实际数据可能有所偏差)</p>
 					</div>
 					<div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
 						<div className="divide-y divide-border/50">

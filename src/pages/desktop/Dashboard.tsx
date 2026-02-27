@@ -308,7 +308,6 @@ export default function Dashboard() {
                       {renderCommunityStat('Sol新注册', latestSnapshot?.new_accounts_via_solana, 'new_accounts_via_solana')}
                       {renderCommunityStat('Sol新绑定', latestSnapshot?.total_solana_addresses_linked, 'total_solana_addresses_linked')}
                       {renderCommunityStat('AMM-$v2ex', latestSnapshot?.main_amm_v2ex_amount, 'main_amm_v2ex_amount')}
-                      {renderCommunityStat('AMM-SOL', latestSnapshot?.main_amm_sol_amount, 'main_amm_sol_amount')}
                       {renderCommunityStat('SOL 打赏次数', latestSnapshot?.sol_tip_operations_count, 'sol_tip_operations_count')}
                       {renderCommunityStat('打赏发送会员数', latestSnapshot?.member_tips_sent, 'member_tips_sent')}
                       {renderCommunityStat('打赏获赏会员数', latestSnapshot?.member_tips_received, 'member_tips_received')}
